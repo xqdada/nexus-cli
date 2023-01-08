@@ -7,10 +7,11 @@ import (
 	"github.com/BurntSushi/toml"
 	"net/http"
 	"os"
+	"time"
 )
 
-const ACCEPT_HEADER = "application/vnd.docker.distribution.manifest.v2+json"
-const CREDENTIALS_FILE = ".credentials"
+const AcceptHeader = "application/vnd.docker.distribution.manifest.v2+json"
+const CredentialsFile = ".credentials"
 
 type Registry struct {
 	Host       string `toml:"nexus_host"`
@@ -42,13 +43,13 @@ type LayerInfo struct {
 
 func NewRegistry() (Registry, error) {
 	r := Registry{}
-	if _, err := os.Stat(CREDENTIALS_FILE); os.IsNotExist(err) {
-		return r, errors.New(fmt.Sprintf("%s file not found\n", CREDENTIALS_FILE))
+	if _, err := os.Stat(CredentialsFile); os.IsNotExist(err) {
+		return r, errors.New(fmt.Sprintf("%s file not found\n", CredentialsFile))
 	} else if err != nil {
 		return r, err
 	}
 
-	if _, err := toml.DecodeFile(CREDENTIALS_FILE, &r); err != nil {
+	if _, err := toml.DecodeFile(CredentialsFile, &r); err != nil {
 		return r, err
 	}
 	return r, nil
@@ -63,7 +64,7 @@ func (r Registry) ListImages() ([]string, error) {
 		return nil, err
 	}
 	req.SetBasicAuth(r.Username, r.Password)
-	req.Header.Add("Accept", ACCEPT_HEADER)
+	req.Header.Add("Accept", AcceptHeader)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -90,7 +91,7 @@ func (r Registry) ListTagsByImage(image string) ([]string, error) {
 		return nil, err
 	}
 	req.SetBasicAuth(r.Username, r.Password)
-	req.Header.Add("Accept", ACCEPT_HEADER)
+	req.Header.Add("Accept", AcceptHeader)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -118,7 +119,7 @@ func (r Registry) ImageManifest(image string, tag string) (ImageManifest, error)
 		return imageManifest, err
 	}
 	req.SetBasicAuth(r.Username, r.Password)
-	req.Header.Add("Accept", ACCEPT_HEADER)
+	req.Header.Add("Accept", AcceptHeader)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -149,7 +150,7 @@ func (r Registry) DeleteImageByTag(image string, tag string) error {
 		return err
 	}
 	req.SetBasicAuth(r.Username, r.Password)
-	req.Header.Add("Accept", ACCEPT_HEADER)
+	req.Header.Add("Accept", AcceptHeader)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -175,7 +176,7 @@ func (r Registry) getImageSHA(image string, tag string) (string, error) {
 		return "", err
 	}
 	req.SetBasicAuth(r.Username, r.Password)
-	req.Header.Add("Accept", ACCEPT_HEADER)
+	req.Header.Add("Accept", AcceptHeader)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -188,4 +189,34 @@ func (r Registry) getImageSHA(image string, tag string) (string, error) {
 	}
 
 	return resp.Header.Get("docker-content-digest"), nil
+}
+
+func (r Registry) GetImageTagDate(image string, tag string) (time.Time, error) {
+	client := &http.Client{}
+
+	url := fmt.Sprintf("%s/repository/%s/v2/%s/manifests/%s", r.Host, r.Repository, image, tag)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return time.Now(), err
+	}
+	req.SetBasicAuth(r.Username, r.Password)
+	req.Header.Add("Accept", AcceptHeader)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return time.Now(), err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return time.Now(), fmt.Errorf("HTTP Code: %d", resp.StatusCode)
+	}
+
+	t, err := time.Parse(time.RFC1123, resp.Header.Get("last-modified"))
+
+	if err != nil {
+		return time.Now(), err
+	}
+
+	return t, nil
 }

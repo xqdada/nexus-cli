@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func Test_SortMixed(t *testing.T) {
 	tags := []string{"latest", "1.0.1"}
@@ -8,8 +10,8 @@ func Test_SortMixed(t *testing.T) {
 	compareStringNumber := func(str1, str2 string) bool {
 		return extractNumberFromString(str1) < extractNumberFromString(str2)
 	}
-	Compare(compareStringNumber).Sort(tags)
 
+	Compare(compareStringNumber).Sort(tags)
 	if tags[0] != "1.0.1" && tags[1] != "latest" {
 		t.Errorf("ordering incorrect when checking mixed tags")
 	}
